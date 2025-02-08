@@ -4,6 +4,7 @@ Common utilities and base classes for GRPO training scripts.
 
 from typing import List, Dict, Optional, Union, TypedDict
 from dataclasses import dataclass
+import json
 
 # Type definitions
 class Completion(TypedDict):
