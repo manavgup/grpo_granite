@@ -1,6 +1,0 @@
-#!/Users/mg/mg-work/manav/work/ai-experiments/grpo/venv/bin/python3.12
-
-from deepspeed.launcher.runner import main
-
-if __name__ == '__main__':
-    main()
