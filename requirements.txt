@@ -3,3 +3,4 @@ transformers==4.48.3
 trl==0.14.0
 deepspeed
 vllm
+wandb
