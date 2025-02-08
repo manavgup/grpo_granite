@@ -5,3 +5,4 @@ deepspeed
 vllm
 wandb
 math-verify
+gputil

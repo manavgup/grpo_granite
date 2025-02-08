@@ -1,17 +1,50 @@
 #!/bin/bash
 set -e
 
+# Help and usage
+usage() {
+    echo "Usage: $0 [dataset]"
+    echo "  dataset: gsm8k (default) or ragbench"
+    echo "Example:"
+    echo "  $0 gsm8k    # Train on GSM8K dataset"
+    echo "  $0 ragbench # Train on RAGBench dataset"
+}
+
+# Parse command line arguments
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    usage
+    exit 0
+fi
+
 # Configuration
-SESSION_NAME="granite_training_$(date +%Y%m%d_%H%M%S)"
+DATASET="${1:-gsm8k}"  # Default to gsm8k if no argument provided
+SESSION_NAME="granite_training_${DATASET}_$(date +%Y%m%d_%H%M%S)"
 MAX_RETRIES=3
 RETRY_COUNT=0
-MODEL_DIR="outputs/granite-3.1-2b-GRPO"
+MODEL_DIR="outputs/granite-3.1-2b-${DATASET}"
 LOG_DIR="logs"
+
+# Dataset-specific configurations
+case "$DATASET" in
+    "gsm8k")
+        TRAIN_SCRIPT="src/train_gsm8k.py"
+        RUN_NAME="granite-3.1-2b-GRPO-gsm8k-8gpu"
+        ;;
+    "ragbench")
+        TRAIN_SCRIPT="src/train_ragbench.py"
+        RUN_NAME="granite-3.1-2b-ragbench"
+        ;;
+    *)
+        echo "Unsupported dataset: $DATASET"
+        echo "Supported datasets: gsm8k, ragbench"
+        exit 1
+        ;;
+esac
 
 # Setup logging
 mkdir -p "$LOG_DIR"
-LOG_FILE="${LOG_DIR}/train_logs_$(date +%Y%m%d_%H%M%S).out"
-CHECKPOINT_LOG="${LOG_DIR}/checkpoints.log"
+LOG_FILE="${LOG_DIR}/train_logs_${DATASET}_$(date +%Y%m%d_%H%M%S).out"
+CHECKPOINT_LOG="${LOG_DIR}/checkpoints_${DATASET}.log"
 
 # Function to find latest checkpoint
 find_latest_checkpoint() {
@@ -61,6 +94,9 @@ start_training() {
         log_message "Resuming from checkpoint: $latest_checkpoint"
     fi
 
+    # Create output directory
+    mkdir -p "$MODEL_DIR"
+
     # Create new tmux session
     tmux new-session -d -s "$SESSION_NAME" "
         # Load environment
@@ -70,7 +106,7 @@ start_training() {
         export WANDB_API_KEY='$WANDB_API_KEY'
         
         # Start training
-        accelerate launch --num_processes 7 --config_file src/zero3.yaml src/train_gsm8k.py \
+        accelerate launch --num_processes 7 --config_file src/zero3.yml $TRAIN_SCRIPT \
             --output_dir $MODEL_DIR \
             --model_name_or_path ibm-granite/granite-3.1-2b-instruct \
             --max_prompt_length 2048 \
@@ -91,7 +127,7 @@ start_training() {
             --vllm_gpu_memory_utilization 0.7 \
             --bf16 \
             --report_to wandb \
-            --run_name 'granite-3.1-2b-GRPO-gsm8k-8gpu' \
+            --run_name '$RUN_NAME' \
             $resume_from \
             2>&1 | tee -a $LOG_FILE
         
@@ -113,7 +149,7 @@ check_training_status() {
 }
 
 # Main execution
-log_message "Starting training script"
+log_message "Starting training script for dataset: $DATASET"
 
 # Load environment variables
 if [ -f .env ]; then
